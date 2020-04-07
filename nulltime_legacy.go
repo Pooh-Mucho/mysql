@@ -7,6 +7,7 @@
 // You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // +build !go1.13
+// +build !go1.14
 
 package mysql
 

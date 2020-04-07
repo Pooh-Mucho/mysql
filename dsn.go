@@ -62,6 +62,10 @@ type Config struct {
 	MultiStatements         bool // Allow multiple statements in one query
 	ParseTime               bool // Parse time values to time.Time
 	RejectReadOnly          bool // Reject read-only connections
+
+	// HuiYi begin: Compress
+	Compress bool // HuiYi: Use mysql compress protocol
+	// HuiYi end: Compress
 }
 
 // NewConfig creates a new Config and sets default values.
@@ -272,6 +276,12 @@ func (cfg *Config) FormatDSN() string {
 		writeDSNParam(&buf, &hasParam, "maxAllowedPacket", strconv.Itoa(cfg.MaxAllowedPacket))
 	}
 
+	// HuiYi begin: Compress
+	if cfg.Compress {
+		writeDSNParam(&buf, &hasParam, "compress", "true")
+	}
+	// HuiYi end: Compress
+
 	// other params
 	if cfg.Params != nil {
 		var params []string
@@ -436,8 +446,17 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			}
 
 		// Compression
+		// HuiYi begin: compress parameter
 		case "compress":
-			return errors.New("compression not implemented yet")
+			// HuiYi begin: Delete
+			// return errors.New("compression not implemented yet")
+			// HuiYi end: Delete
+			var isBool bool
+			cfg.Compress, isBool = readBool(value)
+			if !isBool {
+				return errors.New("invalid bool value: " + value)
+			}
+		// Huiyi end: compress parameter
 
 		// Enable client side placeholder substitution
 		case "interpolateParams":
@@ -537,6 +556,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 			if err != nil {
 				return
 			}
+
 		default:
 			// lazy init
 			if cfg.Params == nil {

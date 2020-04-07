@@ -26,156 +26,170 @@ import (
 
 // Read packet to buffer 'data'
 func (mc *mysqlConn) readPacket() ([]byte, error) {
-	var prevData []byte
-	for {
-		// read packet header
-		data, err := mc.buf.readNext(4)
-		if err != nil {
-			if cerr := mc.canceled.Value(); cerr != nil {
-				return nil, cerr
-			}
-			errLog.Print(err)
-			mc.Close()
-			return nil, ErrInvalidConn
-		}
+	// HuiYi begin: forward to packetTransceiver
 
-		// packet length [24 bit]
-		pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
+	return mc.transceiver.readPacket(mc, mc.cfg.Compress)
 
-		// check packet sync [8 bit]
-		if data[3] != mc.sequence {
-			if data[3] > mc.sequence {
-				return nil, ErrPktSyncMul
-			}
-			return nil, ErrPktSync
-		}
-		mc.sequence++
+	// HuiYi begin: delete
+	// var prevData []byte
+	// for {
+	// 	// read packet header
+	// 	data, err := mc.buf.readNext(4)
+	// 	if err != nil {
+	// 		if cerr := mc.canceled.Value(); cerr != nil {
+	// 			return nil, cerr
+	// 		}
+	// 		errLog.Print(err)
+	// 		mc.Close()
+	// 		return nil, ErrInvalidConn
+	// 	}
 
-		// packets with length 0 terminate a previous packet which is a
-		// multiple of (2^24)-1 bytes long
-		if pktLen == 0 {
-			// there was no previous packet
-			if prevData == nil {
-				errLog.Print(ErrMalformPkt)
-				mc.Close()
-				return nil, ErrInvalidConn
-			}
+	// 	// packet length [24 bit]
+	// 	pktLen := int(uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16)
 
-			return prevData, nil
-		}
+	// 	// check packet sync [8 bit]
+	// 	if data[3] != mc.sequence {
+	// 		if data[3] > mc.sequence {
+	// 			return nil, ErrPktSyncMul
+	// 		}
+	// 		return nil, ErrPktSync
+	// 	}
+	// 	mc.sequence++
 
-		// read packet body [pktLen bytes]
-		data, err = mc.buf.readNext(pktLen)
-		if err != nil {
-			if cerr := mc.canceled.Value(); cerr != nil {
-				return nil, cerr
-			}
-			errLog.Print(err)
-			mc.Close()
-			return nil, ErrInvalidConn
-		}
+	// 	// packets with length 0 terminate a previous packet which is a
+	// 	// multiple of (2^24)-1 bytes long
+	// 	if pktLen == 0 {
+	// 		// there was no previous packet
+	// 		if prevData == nil {
+	// 			errLog.Print(ErrMalformPkt)
+	// 			mc.Close()
+	// 			return nil, ErrInvalidConn
+	// 		}
 
-		// return data if this was the last packet
-		if pktLen < maxPacketSize {
-			// zero allocations for non-split packets
-			if prevData == nil {
-				return data, nil
-			}
+	// 		return prevData, nil
+	// 	}
 
-			return append(prevData, data...), nil
-		}
+	// 	// read packet body [pktLen bytes]
+	// 	data, err = mc.buf.readNext(pktLen)
+	// 	if err != nil {
+	// 		if cerr := mc.canceled.Value(); cerr != nil {
+	// 			return nil, cerr
+	// 		}
+	// 		errLog.Print(err)
+	// 		mc.Close()
+	// 		return nil, ErrInvalidConn
+	// 	}
 
-		prevData = append(prevData, data...)
-	}
+	// 	// return data if this was the last packet
+	// 	if pktLen < maxPacketSize {
+	// 		// zero allocations for non-split packets
+	// 		if prevData == nil {
+	// 			return data, nil
+	// 		}
+
+	// 		return append(prevData, data...), nil
+	// 	}
+
+	// 	prevData = append(prevData, data...)
+	// }
+	// HuiYi begin: delete
+	// HuiYi end: forward to packetTransceiver
 }
 
 // Write packet buffer 'data'
 func (mc *mysqlConn) writePacket(data []byte) error {
-	pktLen := len(data) - 4
+	// HuiYi begin: forward to packetTransceiver
 
-	if pktLen > mc.maxAllowedPacket {
-		return ErrPktTooLarge
-	}
+	return mc.transceiver.writePacket(mc, data, mc.cfg.Compress)
 
-	// Perform a stale connection check. We only perform this check for
-	// the first query on a connection that has been checked out of the
-	// connection pool: a fresh connection from the pool is more likely
-	// to be stale, and it has not performed any previous writes that
-	// could cause data corruption, so it's safe to return ErrBadConn
-	// if the check fails.
-	if mc.reset {
-		mc.reset = false
-		conn := mc.netConn
-		if mc.rawConn != nil {
-			conn = mc.rawConn
-		}
-		var err error
-		// If this connection has a ReadTimeout which we've been setting on
-		// reads, reset it to its default value before we attempt a non-blocking
-		// read, otherwise the scheduler will just time us out before we can read
-		if mc.cfg.ReadTimeout != 0 {
-			err = conn.SetReadDeadline(time.Time{})
-		}
-		if err == nil && mc.cfg.CheckConnLiveness {
-			err = connCheck(conn)
-		}
-		if err != nil {
-			errLog.Print("closing bad idle connection: ", err)
-			mc.Close()
-			return driver.ErrBadConn
-		}
-	}
+	// HuiYi begin: delete
+	// pktLen := len(data) - 4
 
-	for {
-		var size int
-		if pktLen >= maxPacketSize {
-			data[0] = 0xff
-			data[1] = 0xff
-			data[2] = 0xff
-			size = maxPacketSize
-		} else {
-			data[0] = byte(pktLen)
-			data[1] = byte(pktLen >> 8)
-			data[2] = byte(pktLen >> 16)
-			size = pktLen
-		}
-		data[3] = mc.sequence
+	// if pktLen > mc.maxAllowedPacket {
+	// 	return ErrPktTooLarge
+	// }
 
-		// Write packet
-		if mc.writeTimeout > 0 {
-			if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
-				return err
-			}
-		}
+	// // Perform a stale connection check. We only perform this check for
+	// // the first query on a connection that has been checked out of the
+	// // connection pool: a fresh connection from the pool is more likely
+	// // to be stale, and it has not performed any previous writes that
+	// // could cause data corruption, so it's safe to return ErrBadConn
+	// // if the check fails.
+	// if mc.reset {
+	// 	mc.reset = false
+	// 	conn := mc.netConn
+	// 	if mc.rawConn != nil {
+	// 		conn = mc.rawConn
+	// 	}
+	// 	var err error
+	// 	// If this connection has a ReadTimeout which we've been setting on
+	// 	// reads, reset it to its default value before we attempt a non-blocking
+	// 	// read, otherwise the scheduler will just time us out before we can read
+	// 	if mc.cfg.ReadTimeout != 0 {
+	// 		err = conn.SetReadDeadline(time.Time{})
+	// 	}
+	// 	if err == nil && mc.cfg.CheckConnLiveness {
+	// 		err = connCheck(conn)
+	// 	}
+	// 	if err != nil {
+	// 		errLog.Print("closing bad idle connection: ", err)
+	// 		mc.Close()
+	// 		return driver.ErrBadConn
+	// 	}
+	// }
 
-		n, err := mc.netConn.Write(data[:4+size])
-		if err == nil && n == 4+size {
-			mc.sequence++
-			if size != maxPacketSize {
-				return nil
-			}
-			pktLen -= size
-			data = data[size:]
-			continue
-		}
+	// for {
+	// 	var size int
+	// 	if pktLen >= maxPacketSize {
+	// 		data[0] = 0xff
+	// 		data[1] = 0xff
+	// 		data[2] = 0xff
+	// 		size = maxPacketSize
+	// 	} else {
+	// 		data[0] = byte(pktLen)
+	// 		data[1] = byte(pktLen >> 8)
+	// 		data[2] = byte(pktLen >> 16)
+	// 		size = pktLen
+	// 	}
+	// 	data[3] = mc.sequence
 
-		// Handle error
-		if err == nil { // n != len(data)
-			mc.cleanup()
-			errLog.Print(ErrMalformPkt)
-		} else {
-			if cerr := mc.canceled.Value(); cerr != nil {
-				return cerr
-			}
-			if n == 0 && pktLen == len(data)-4 {
-				// only for the first loop iteration when nothing was written yet
-				return errBadConnNoWrite
-			}
-			mc.cleanup()
-			errLog.Print(err)
-		}
-		return ErrInvalidConn
-	}
+	// 	// Write packet
+	// 	if mc.writeTimeout > 0 {
+	// 		if err := mc.netConn.SetWriteDeadline(time.Now().Add(mc.writeTimeout)); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+
+	// 	n, err := mc.netConn.Write(data[:4+size])
+	// 	if err == nil && n == 4+size {
+	// 		mc.sequence++
+	// 		if size != maxPacketSize {
+	// 			return nil
+	// 		}
+	// 		pktLen -= size
+	// 		data = data[size:]
+	// 		continue
+	// 	}
+
+	// 	// Handle error
+	// 	if err == nil { // n != len(data)
+	// 		mc.cleanup()
+	// 		errLog.Print(ErrMalformPkt)
+	// 	} else {
+	// 		if cerr := mc.canceled.Value(); cerr != nil {
+	// 			return cerr
+	// 		}
+	// 		if n == 0 && pktLen == len(data)-4 {
+	// 			// only for the first loop iteration when nothing was written yet
+	// 			return errBadConnNoWrite
+	// 		}
+	// 		mc.cleanup()
+	// 		errLog.Print(err)
+	// 	}
+	// 	return ErrInvalidConn
+	// }
+	// HuiYi end: delete
+	// HuiYi end: forward to packetTransceiver
 }
 
 /******************************************************************************
@@ -185,7 +199,13 @@ func (mc *mysqlConn) writePacket(data []byte) error {
 // Handshake Initialization Packet
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 func (mc *mysqlConn) readHandshakePacket() (data []byte, plugin string, err error) {
-	data, err = mc.readPacket()
+	// HuiYi begin: handle handshake
+	// handshake packet always uncompressed.
+	data, err = mc.transceiver.readPacket(mc, false)
+	// HuiYi begin: delete
+	// data, err = mc.readPacket()
+	// HuiYi end: delete
+	// HuiYi end: handle handshake
 	if err != nil {
 		// for init we can rewrite this to ErrBadConn for sql.Driver to retry, since
 		// in connection initialization we don't risk retrying non-idempotent actions.
@@ -297,6 +317,12 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 		clientFlags |= clientSSL
 	}
 
+	// HuiYi begin: compression protocal support
+	if mc.cfg.Compress {
+		clientFlags |= clientCompress
+	}
+	// HuiYi end: compression protocal support
+
 	if mc.cfg.MultiStatements {
 		clientFlags |= clientMultiStatements
 	}
@@ -395,8 +421,14 @@ func (mc *mysqlConn) writeHandshakeResponsePacket(authResp []byte, plugin string
 	data[pos] = 0x00
 	pos++
 
+	// HuiYi begin: send auth packet
+	// auth packet always uncompressed
+	return mc.transceiver.writePacket(mc, data[:pos], false)
+	// HuiYi begin: delete
 	// Send Auth packet
-	return mc.writePacket(data[:pos])
+	// return mc.writePacket(data[:pos])
+	// HuiYi end: delete
+	// HuiYi end: send auth packet
 }
 
 // http://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchResponse
@@ -422,6 +454,10 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
 
+	// HuiYi begin: reset packet compress sequence
+	mc.compressionSequence = 0
+	// HuiYi end: reset packet compress sequence
+
 	data, err := mc.buf.takeSmallBuffer(4 + 1)
 	if err != nil {
 		// cannot take the buffer. Something must be wrong with the connection
@@ -439,6 +475,10 @@ func (mc *mysqlConn) writeCommandPacket(command byte) error {
 func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+
+	// HuiYi begin: reset packet compress sequence
+	mc.compressionSequence = 0
+	// HuiYi end: reset packet compress sequence
 
 	pktLen := 1 + len(arg)
 	data, err := mc.buf.takeBuffer(pktLen + 4)
@@ -461,6 +501,10 @@ func (mc *mysqlConn) writeCommandPacketStr(command byte, arg string) error {
 func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 	// Reset Packet Sequence
 	mc.sequence = 0
+
+	// HuiYi begin: reset packet compress sequence
+	mc.compressionSequence = 0
+	// HuiYi end: reset packet compress sequence
 
 	data, err := mc.buf.takeSmallBuffer(4 + 1 + 4)
 	if err != nil {
@@ -487,7 +531,13 @@ func (mc *mysqlConn) writeCommandPacketUint32(command byte, arg uint32) error {
 ******************************************************************************/
 
 func (mc *mysqlConn) readAuthResult() ([]byte, string, error) {
-	data, err := mc.readPacket()
+	// HuiYi begin: read auth result
+	// auth packet always uncompressed
+	data, err := mc.transceiver.readPacket(mc, false)
+	// HuiYi begin: delete
+	// data, err := mc.readPacket()
+	// HuiYi end: delete
+	// HuiYi end: read auth result
 	if err != nil {
 		return nil, "", err
 	}
@@ -876,6 +926,11 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 		}
 
 		stmt.mc.sequence = 0
+
+		// HuiYi begin: reset packet compress sequence
+		stmt.mc.compressionSequence = 0
+		// HuiYi end: reset packet compress sequence
+
 		// Add command byte [1 byte]
 		data[4] = comStmtSendLongData
 
@@ -901,6 +956,11 @@ func (stmt *mysqlStmt) writeCommandLongData(paramID int, arg []byte) error {
 
 	// Reset Packet Sequence
 	stmt.mc.sequence = 0
+
+	// HuiYi begin: reset packet compress sequence
+	stmt.mc.compressionSequence = 0
+	// HuiYi end: reset packet compress sequence
+
 	return nil
 }
 
@@ -926,6 +986,10 @@ func (stmt *mysqlStmt) writeExecutePacket(args []driver.Value) error {
 
 	// Reset packet-sequence
 	mc.sequence = 0
+
+	// HuiYi begin: reset packet compress sequence
+	mc.compressionSequence = 0
+	// HuiYi end: reset packet compress sequence
 
 	var data []byte
 	var err error
