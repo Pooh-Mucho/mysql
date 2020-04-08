@@ -1,5 +1,10 @@
 # Go MySQL Driver With Compress Protocol Support
+## Installation
+Simple install the package to your $GOPATH with the go tool from shell:
 
+$ go get -u github.com/Pooh-Mucho/mysql
+
+## Usage
 Enable compress protocol:
 ```go
 import (
