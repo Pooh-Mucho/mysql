@@ -1,3 +1,27 @@
+# Go MySQL Driver With Compress Protocol Support
+
+Enable compress protocol:
+```go
+import (
+    "database/sql"
+    _ "github.com/Pooh-Mucho/mysql"
+)
+...
+db, err := sql.Open("mysql", "username:password@tcp(ip_addr)/dbname?compress=true"
+```
+
+Switch zlib compression implementation between golang zlib package and zlib cgo (better performance and small gc pressure):
+```go
+import (
+    "database/sql"
+    "github.com/Pooh-Mucho/mysql"
+)
+...
+mysql.UseZLibCgo = true
+db, err := sql.Open("mysql", "username:password@tcp(ip_addr)/dbname?compress=true"
+```
+
+
 # Go-MySQL-Driver
 
 A MySQL-Driver for Go's [database/sql](https://golang.org/pkg/database/sql/) package

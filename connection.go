@@ -21,7 +21,12 @@ import (
 )
 
 type mysqlConn struct {
-	buf              buffer
+	buf buffer
+
+	// HuiYi begin: packetTransceiver
+	transceiver packetTransceiver
+	// HuiYi end: packetTransceiver
+
 	netConn          net.Conn
 	rawConn          net.Conn // underlying connection when netConn is TLS connection.
 	affectedRows     uint64
@@ -43,6 +48,10 @@ type mysqlConn struct {
 	finished chan<- struct{}
 	canceled atomicError // set non-nil if conn is canceled
 	closed   atomicBool  // set when conn is closed, before closech is closed
+
+	// HuiYi Begin: Compression
+	compressionSequence uint8
+	// HuiYi End: Compression
 }
 
 // Handles parameters set in DSN after the connection is established
