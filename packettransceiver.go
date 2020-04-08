@@ -45,7 +45,7 @@ const (
 
 var (
 	// Flag to enable / disable using zlib cgo
-	UseZLibCgo = true
+	UseZLibCgo = false
 )
 
 // [0..2] payload length [3]byte, in little endian
